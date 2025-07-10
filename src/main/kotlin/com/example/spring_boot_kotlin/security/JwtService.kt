@@ -4,74 +4,77 @@ import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.HttpStatusCode
 import org.springframework.stereotype.Service
+import org.springframework.web.server.ResponseStatusException
 import java.util.*
+
 //La clave debe ser al menos de 256 bit de longitud
 @Service
 class JwtService(
     @Value("\${jwt.secret}") private val jwtSecret:String
 ) {
-    private val secretKey= Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret))
-    private val accessTokenValidityMs= 15L * 60L * 1000L
-    val refreshTokenValidityMs=30*24L*60L*60L * 100 * 1000L
+    private val secretKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret))
+    private val accessTokenValidityMs = 15L * 60L * 1000L
+    val refreshTokenValidityMs = 30L * 24 * 60 * 60 * 1000L
 
     private fun generateToken(
-        userId:String,
+        userId: String,
         type: String,
-        expiry:Long
-    ):String {
+        expiry: Long
+    ): String {
         val now = Date()
-        val expiryDate= Date(now.time + expiry)
+        val expiryDate = Date(now.time + expiry)
         return Jwts.builder()
             .subject(userId)
-            .claim("type",type)
+            .claim("type", type)
             .issuedAt(now)
             .expiration(expiryDate)
-            .signWith( secretKey,Jwts.SIG.HS256)
+            .signWith(secretKey, Jwts.SIG.HS256)
             .compact()
     }
 
-    fun generateAccessToken(userId: String):String{
-        return generateToken(userId, type = "access",accessTokenValidityMs)
+    fun generateAccessToken(userId: String): String {
+        return generateToken(userId, "access", accessTokenValidityMs)
     }
 
-    fun generateRefreshToken(userId: String):String{
-        return generateToken(userId, type = "refresh",refreshTokenValidityMs)
+    fun generateRefreshToken(userId: String): String {
+        return generateToken(userId, "refresh", refreshTokenValidityMs)
     }
 
-    fun validateAccessToken(token:String):Boolean{
-        val claims=parseAllClaims(token)?: return false
-        val tokeType = claims["type"] as? String?: return false
-
-        return tokeType == "access"
+    fun validateAccessToken(token: String): Boolean {
+        val claims = parseAllClaims(token) ?: return false
+        val tokenType = claims["type"] as? String ?: return false
+        return tokenType == "access"
     }
 
-    fun validateRefreshToken(token:String):Boolean{
-        val claims=parseAllClaims(token)?: return false
-        val tokeType = claims["type"] as? String?: return false
-
-        return tokeType == "refresh"
+    fun validateRefreshToken(token: String): Boolean {
+        val claims = parseAllClaims(token) ?: return false
+        val tokenType = claims["type"] as? String ?: return false
+        return tokenType == "refresh"
     }
 
-    fun getUserIdFromToken(token: String):String{
-        val rawToken = if (token.startsWith("Bearer ")){
+    fun getUserIdFromToken(token: String): String {
+        val claims = parseAllClaims(token) ?: throw ResponseStatusException(
+            HttpStatusCode.valueOf(401),
+            "Invalid token."
+        )
+        return claims.subject
+    }
+
+    private fun parseAllClaims(token: String): Claims? {
+        val rawToken = if(token.startsWith("Bearer ")) {
             token.removePrefix("Bearer ")
-        }else token
+        } else token
 
-        val claims = parseAllClaims(rawToken) ?: throw  IllegalArgumentException("Invalid Token.")
-        return  claims.subject
-    }
-
-    private fun parseAllClaims(token:String): Claims?{
         return try {
             Jwts.parser()
                 .verifyWith(secretKey)
                 .build()
-                .parseSignedClaims(token)
+                .parseSignedClaims(rawToken)
                 .payload
-        } catch (e:Exception){
+        } catch(e: Exception) {
             null
         }
     }
-
 }

@@ -3,6 +3,7 @@ package com.example.spring_boot_kotlin.security
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.slf4j.LoggerFactory
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.GrantedAuthority
 import org.springframework.security.core.context.SecurityContext
@@ -21,7 +22,10 @@ class JwtAuthFilter(
         filterChain: FilterChain
     ) {
         val authHeader = request.getHeader("Authorization")
+
         if(authHeader != null && authHeader.startsWith("Bearer ")) {
+
+
             if(jwtService.validateAccessToken(authHeader)) {
                 val userId = jwtService.getUserIdFromToken(authHeader)
                 val auth = UsernamePasswordAuthenticationToken(userId, null, emptyList())
